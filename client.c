@@ -36,6 +36,7 @@ void* read_msg(void* s){
 		printf("others: %s\n", buffer);
 		puts("!");
 	}
+	server_is_dead = 1;
 }
 
 int main(int argc, char** argv){
