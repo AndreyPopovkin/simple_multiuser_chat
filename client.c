@@ -91,7 +91,7 @@ int main(int argc, char** argv){
     	}
 		buf[i] = 0;
 		if(server_is_dead){
-			puts("sorry, but server is dead");
+			puts("sorry, but server has refused your connection");
 			return 0;
 		}
 		if(i == 0)
