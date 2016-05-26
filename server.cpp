@@ -10,15 +10,18 @@
 #include <vector>
 #include <pthread.h>
 #include <string>
+#include <map>
 
 using std::vector;
 using std::cout;
 using std::cin;
 using std::string;
+using std::map;
 
 const int MAX_BUFSIZE = 1000;
 
-pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t lock_map = PTHREAD_MUTEX_INITIALIZER;
+//pthread_mutex_t lock_ret = PTHREAD_MUTEX_INITIALIZER;
 vector<int> connections;
 
 void print_error(string msg) {
@@ -26,60 +29,67 @@ void print_error(string msg) {
     exit(0);
 }
 
-void* service(void* arg){
+map<int, pthread_t> threads;
+//vector<int> terminated_clients;
 
+int exit_from_servise(int id, int ret = 0){
+	close(id);
+
+	//pthread_mutex_lock(&lock_ret);
+	//terminated_clients.push_back(id);
+	//pthread_mutex_unlock(&lock_ret);
+
+	pthread_mutex_lock(&lock_map);
+	threads.erase(id);
+	pthread_mutex_unlock(&lock_map);
+
+	pthread_exit((void*)ret);
+}
+
+void* service(void* arg){
 	int conn = *((int*)arg);
-//	while(1) cout << conn << " ";
+	int* intarg = (int*)arg;
+	delete intarg;
 	int n;
 	char buf[MAX_BUFSIZE];
-
-	pthread_mutex_lock(&lock);
-	connections.push_back(conn);
-	pthread_mutex_unlock(&lock);
 
     while(1){
     	n = read(conn, buf, MAX_BUFSIZE);
 		if (n < 0){
 	    	perror("ERROR reading from socket");
-	    	close(conn);
-	    	pthread_exit(0);
+	    	exit_from_servise(conn);
 	    }
 	    buf[n] = 0;
 		if (!n){
-			printf("Error: client died :c");
-			close(conn);
-			pthread_exit(0);
+			printf("Error: client %d died :c\n", conn);
+	    	exit_from_servise(conn);
 		}
 		puts(buf);
-		cout << n << "\n";
-		//getchar();
+		//cout << n << "\n";
 	    if((string)buf == "quit") {
-	    	//buf = "!OK!";
 	    	buf[0] = '!';
 	    	buf[1] = 'O';
 	    	buf[2] = 'K';
 	    	buf[3] = '!';
 	    	buf[4] = 0;
 	    	n = write(conn, buf, strlen(buf));
-	    	close(conn);
-	    	pthread_exit(0);
+	    	exit_from_servise(conn);
 	    }
-		pthread_mutex_lock(&lock);
-		for(int i = 0; i < connections.size(); ++i)
-			if(connections[i] != conn){
-		    	n = write(connections[i], buf, strlen(buf));
-				puts(buf);
-				cout << connections[i] << "\n";
+		pthread_mutex_lock(&lock_map);
+		for(auto i = threads.begin(); i != threads.end(); ++i)
+			if(i->first != conn){
+		    	n = write(i->first, buf, strlen(buf));
+				//puts(buf);
+				cout << "send to " << i->first << "\n";
 		    	if (n < 0){
 					//pthread_mutex_unlock(&lock);
 		        	perror("ERROR writing to socket");
-		        	cout << connections[i] << "\n";
+		        	cout << i->first << "\n";
 		        }
 			}
-		pthread_mutex_unlock(&lock);
+		pthread_mutex_unlock(&lock_map);
 	}
-	close(conn);
-	pthread_exit(0);
+	exit_from_servise(conn);
 }
 
 int main(int argc, char **argv)
@@ -92,22 +102,25 @@ int main(int argc, char **argv)
 
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    serv_addr.sin_port = htons(5000); 
+    serv_addr.sin_port = htons(5000);
 
     bind(listenfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr)); 
     listen(listenfd, 10); 
 
-    puts("!");
+    //puts("!");
 
     //vector<pthread_t> threads;
-    pthread_t thread;
+    
+	//pthread_mutex_lock(&lock2);
 
     while(1)
     {
         connfd = accept(listenfd, (struct sockaddr*)NULL, NULL); 
         //threads.push_back(pthread_t());
         cout << connfd << "\n";
-		pthread_create(&thread, NULL, service, &connfd);
+        pthread_mutex_lock(&lock_map);
+		pthread_create(&(threads[connfd] = pthread_t()), NULL, service, new int(connfd));
+		pthread_mutex_unlock(&lock_map);
         cout << connfd << " is connected\n";
     }
     close(listenfd);
