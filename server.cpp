@@ -32,27 +32,26 @@ void print_error(string msg) {
 map<int, pthread_t> threads;
 //vector<int> terminated_clients;
 
-int exit_from_servise(int id, int ret = 0){
+int exit_from_servise(int id){
 	close(id);
 
-	//pthread_mutex_lock(&lock_ret);
-	//terminated_clients.push_back(id);
-	//pthread_mutex_unlock(&lock_ret);
+	cout << "terminating " << id << "\n";
 
 	pthread_mutex_lock(&lock_map);
 	threads.erase(id);
 	pthread_mutex_unlock(&lock_map);
 
-	pthread_exit((void*)ret);
+	pthread_exit(0);
 }
 
 void* service(void* arg){
+	cout << "!\n";
 	int conn = *((int*)arg);
 	int* intarg = (int*)arg;
 	delete intarg;
 	int n;
 	char buf[MAX_BUFSIZE];
-
+	cout << conn << "\n";
     while(1){
     	n = read(conn, buf, MAX_BUFSIZE);
 		if (n < 0){
@@ -94,6 +93,11 @@ void* service(void* arg){
 
 int main(int argc, char **argv)
 {
+	if(argc != 2){
+		cout << "using: ./server port\n";
+		return 0;
+	}
+
     int listenfd = 0, connfd = 0;
     struct sockaddr_in serv_addr; 
 
@@ -102,16 +106,15 @@ int main(int argc, char **argv)
 
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    serv_addr.sin_port = htons(5000);
+    serv_addr.sin_port = htons(atoi(argv[1]));
 
     bind(listenfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr)); 
     listen(listenfd, 10); 
 
-    //puts("!");
-
-    //vector<pthread_t> threads;
-    
-	//pthread_mutex_lock(&lock2);
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+    //cout << "please connecting to 5000 port\n";
 
     while(1)
     {
@@ -119,7 +122,9 @@ int main(int argc, char **argv)
         //threads.push_back(pthread_t());
         cout << connfd << "\n";
         pthread_mutex_lock(&lock_map);
-		pthread_create(&(threads[connfd] = pthread_t()), NULL, service, new int(connfd));
+        //cout << "?\n";
+		pthread_create(&(threads[connfd] = pthread_t()), &attr, service, new int(connfd));
+		//cout << "!\n";
 		pthread_mutex_unlock(&lock_map);
         cout << connfd << " is connected\n";
     }
