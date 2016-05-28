@@ -22,7 +22,7 @@ const int MAX_BUFSIZE = 1000;
 
 pthread_mutex_t lock_map = PTHREAD_MUTEX_INITIALIZER;
 //pthread_mutex_t lock_ret = PTHREAD_MUTEX_INITIALIZER;
-vector<int> connections;
+//vector<int> connections;
 
 void print_error(string msg) {
     perror(msg.c_str());
@@ -33,14 +33,14 @@ map<int, pthread_t> threads;
 //vector<int> terminated_clients;
 
 int exit_from_servise(int id){
-	close(id);
 
 	cout << "terminating " << id << "\n";
 
 	pthread_mutex_lock(&lock_map);
 	threads.erase(id);
+	close(id);
 	pthread_mutex_unlock(&lock_map);
-
+	//puts("?");
 	pthread_exit(0);
 }
 
@@ -51,7 +51,7 @@ void* service(void* arg){
 	delete intarg;
 	int n;
 	char buf[MAX_BUFSIZE];
-	cout << conn << "\n";
+	//cout << conn << "\n";
     while(1){
     	n = read(conn, buf, MAX_BUFSIZE);
 		if (n < 0){
@@ -65,26 +65,28 @@ void* service(void* arg){
 		}
 		puts(buf);
 		//cout << n << "\n";
-	    if((string)buf == "quit") {
+	    if(strncmp(buf, "~quit", 5) == 0) {
 	    	buf[0] = '!';
 	    	buf[1] = 'O';
 	    	buf[2] = 'K';
 	    	buf[3] = '!';
 	    	buf[4] = 0;
 	    	n = write(conn, buf, strlen(buf));
+	    	//puts("!");
 	    	exit_from_servise(conn);
 	    }
+	    //puts("~");
 		pthread_mutex_lock(&lock_map);
 		for(auto i = threads.begin(); i != threads.end(); ++i)
 			if(i->first != conn){
 		    	n = write(i->first, buf, strlen(buf));
 				//puts(buf);
-				cout << "send to " << i->first << "\n";
 		    	if (n < 0){
 					//pthread_mutex_unlock(&lock);
 		        	perror("ERROR writing to socket");
 		        	cout << i->first << "\n";
-		        }
+		        }else 
+					cout << "send to " << i->first << "\n";
 			}
 		pthread_mutex_unlock(&lock_map);
 	}
@@ -118,12 +120,18 @@ int main(int argc, char **argv)
 
     while(1)
     {
-        connfd = accept(listenfd, (struct sockaddr*)NULL, NULL); 
+        connfd = accept(listenfd, (struct sockaddr*)NULL, 0); 
         //threads.push_back(pthread_t());
         cout << connfd << "\n";
         pthread_mutex_lock(&lock_map);
         //cout << "?\n";
-		pthread_create(&(threads[connfd] = pthread_t()), &attr, service, new int(connfd));
+        int* arg = new int(connfd);
+		int err = pthread_create(&(threads[connfd] = pthread_t()), &attr, service, arg);
+		if(err){
+			perror("pthread_create\n");
+			threads.erase(connfd);
+			delete arg;
+		}
 		//cout << "!\n";
 		pthread_mutex_unlock(&lock_map);
         cout << connfd << " is connected\n";

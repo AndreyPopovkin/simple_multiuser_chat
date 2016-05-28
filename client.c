@@ -8,7 +8,7 @@
 #include <netdb.h>
 #include <pthread.h>
 
-#define MAX_BUFSIZE 65536
+#define MAX_BUFSIZE 1000
 
 void p_error(char* msg){
 	perror(msg);
@@ -33,8 +33,9 @@ void* read_msg(void* s){
 			server_is_dead = 1;
 			pthread_exit(0);
 		}
-		printf("others: %s\n", buffer);
-		puts("!");
+		printf("\rothers: %s", buffer);
+		//printf("you:");
+		//puts("!");
 	}
 	server_is_dead = 1;
 }
@@ -81,26 +82,31 @@ int main(int argc, char** argv){
 	int i, c, n;
 	char buf[MAX_BUFSIZE];
 	do{
+		printf("\ryou: ");
 		bzero(buf, MAX_BUFSIZE);
-		printf("you:\n");
 		for (i = 0; i < MAX_BUFSIZE - 1; ++i){
         	c = fgetc(stdin);
+        	if(c == EOF){
+        		puts("exit");
+        		exit(0);
+        	}
+        	buf[i] = c;
         	if (c == '\n')
             	break;
-        	buf[i] = c;
     	}
-		buf[i] = 0;
+		buf[++i] = 0;
 		if(server_is_dead){
 			puts("sorry, but server has refused your connection");
 			return 0;
 		}
-		if(i == 0)
+		if(i <= 1)
 			continue;
 		n = write(sock_fd, buf, i);
 		if (n < 0)
 			p_error("Error while writing to socket");
+		printf("\ryou: ");
 	}while(buf[0] != '~' || buf[1] != 'q' || buf[2] != 'u' || buf[3] != 'i' || 
 							buf[4] != 't');
-	puts(buf);
+	//puts(buf);
 	return 0;
 }
